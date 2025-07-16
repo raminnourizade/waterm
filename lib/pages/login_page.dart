@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'homepage.dart';
 import 'map_page.dart';
 
 class LoginPage extends StatefulWidget {
@@ -8,9 +9,46 @@ class LoginPage extends StatefulWidget {
   State<LoginPage> createState() => _LoginPageState();
 }
 
-class _LoginPageState extends State<LoginPage> {
-  final usernameController = TextEditingController();
-  final passwordController = TextEditingController();
+class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMixin {
+  final TextEditingController usernameController = TextEditingController();
+  final TextEditingController passwordController = TextEditingController();
+
+  late AnimationController _animationController;
+  late Animation<Offset> _slideAnimation;
+  late Animation<double> _fadeAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+
+    _animationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 800),
+    );
+
+    _slideAnimation = Tween<Offset>(
+      begin: const Offset(0, 0.2),
+      end: Offset.zero,
+    ).animate(CurvedAnimation(
+      parent: _animationController,
+      curve: Curves.easeOutCubic,
+    ));
+
+    _fadeAnimation = CurvedAnimation(
+      parent: _animationController,
+      curve: Curves.easeIn,
+    );
+
+    _animationController.forward();
+  }
+
+  @override
+  void dispose() {
+    _animationController.dispose();
+    usernameController.dispose();
+    passwordController.dispose();
+    super.dispose();
+  }
 
   void _login() {
     String username = usernameController.text.trim();
@@ -18,7 +56,7 @@ class _LoginPageState extends State<LoginPage> {
     if (username == 'admin' && password == 'admin') {
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (context) => const MapPage()),
+        MaterialPageRoute(builder: (context) => const HomePage()),
       );
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -27,60 +65,83 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
+  InputDecoration buildInputDecoration({required String label, required IconData icon}) {
+    return InputDecoration(
+      labelText: label,
+      prefixIcon: Icon(icon),
+      filled: true,
+      fillColor: Colors.white,
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(16),
+        borderSide: BorderSide.none,
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(16),
+        borderSide: const BorderSide(color: Colors.lightBlue, width: 2),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
-        backgroundColor: Color(0xFFE0F7FA), // آبی روشن
+        backgroundColor: const Color(0xffe0f7fa),
         body: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24.0),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Image.asset('assets/logo.png', height: 100),
-                const SizedBox(height: 16),
-                const Text(
-                  '  سامانه شرکت آب و فاضلاب',
-                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Color(0xFF01579B)),
-                ),
-                const SizedBox(height: 32),
-                TextField(
-                  controller: usernameController,
-                  decoration: const InputDecoration(
-                    labelText: 'نام کاربری',
-                    filled: true,
-                    fillColor: Colors.white,
-                    border: OutlineInputBorder(),
+          child: FadeTransition(
+            opacity: _fadeAnimation,
+            child: SlideTransition(
+              position: _slideAnimation,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Image.asset('assets/logo.png', height: 100),
+                      const SizedBox(height: 32),
+                      const Text(
+                        'شرکت آب و فاضلاب',
+                        style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 24),
+                      TextField(
+                        controller: usernameController,
+                        decoration: buildInputDecoration(label: 'نام کاربری', icon: Icons.person),
+                      ),
+                      const SizedBox(height: 16),
+                      TextField(
+                        controller: passwordController,
+                        obscureText: true,
+                        decoration: buildInputDecoration(label: 'رمز عبور', icon: Icons.lock),
+                      ),
+                      const SizedBox(height: 32),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          onPressed: _login,
+                          icon: const Icon(Icons.login),
+                          label: const Text('ورود', style: TextStyle(fontSize: 16)),
+                          style: ElevatedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            backgroundColor: const Color(0xff0288d1),
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            elevation: 6,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: passwordController,
-                  obscureText: true,
-                  decoration: const InputDecoration(
-                    labelText: 'رمز عبور',
-                    filled: true,
-                    fillColor: Colors.white,
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 24),
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Color(0xFF0288D1), // آبی اصلی
-                    padding: const EdgeInsets.symmetric(horizontal: 50, vertical: 14),
-                  ),
-                  onPressed: _login,
-                  child: const Text('ورود', style: TextStyle(fontSize: 18)),
-                ),
-              ],
+              ),
             ),
           ),
         ),
       ),
     );
-
   }
 }

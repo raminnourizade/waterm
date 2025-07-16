@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
+import 'homepage.dart';
 import 'login_page.dart';
 import '../widgets/custom_input_dialog.dart';
 
@@ -9,7 +10,7 @@ class MapPage extends StatelessWidget {
 
   void _logout(BuildContext context) {
     Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (context) => const LoginPage()),
+      MaterialPageRoute(builder: (context) => const HomePage()),
           (route) => false,
     );
   }
