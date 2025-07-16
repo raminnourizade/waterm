@@ -1,18 +1,28 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
-import 'homepage.dart';
-import 'login_page.dart';
+import '../config/app_colors.dart';
+import '../config/app_constants.dart';
 import '../widgets/custom_input_dialog.dart';
 
-class MapPage extends StatelessWidget {
-  const MapPage({super.key});
+class MapPage extends StatefulWidget {
+  final bool showDialogOnStart;
+  const MapPage({super.key, this.showDialogOnStart = false});
 
-  void _logout(BuildContext context) {
-    Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (context) => const HomePage()),
-          (route) => false,
-    );
+  @override
+  State<MapPage> createState() => _MapPageState();
+}
+
+class _MapPageState extends State<MapPage> {
+  @override
+  void initState() {
+    super.initState();
+    // نمایش فرم ثبت اطلاعات در شروع، در صورت نیاز
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (widget.showDialogOnStart) {
+        showCustomInputDialog(context);
+      }
+    });
   }
 
   @override
@@ -21,16 +31,13 @@ class MapPage extends StatelessWidget {
       textDirection: TextDirection.rtl,
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('نقشه'),
+          title: const Text('نقشه آب و فاضلاب'),
           centerTitle: true,
-          leading: IconButton(
-            icon: const Icon(Icons.logout),
-            tooltip: 'خروج',
-            onPressed: () => _logout(context),
-          ),
+          backgroundColor: AppColors.primary,
         ),
         body: Stack(
           children: [
+            // نقشه
             FlutterMap(
               options: MapOptions(
                 center: LatLng(38.0816, 46.2919), // مرکز تبریز
@@ -43,17 +50,18 @@ class MapPage extends StatelessWidget {
                 ),
               ],
             ),
+            // دکمه ثبت اطلاعات
             Positioned(
               bottom: 32,
               right: 32,
               child: FloatingActionButton.extended(
                 onPressed: () {
                   showCustomInputDialog(context);
-
-                  // توابع یا دیالوگ ثبت اطلاعات اینجا صدا زده می‌شود
                 },
                 label: const Text('ثبت اطلاعات'),
                 icon: const Icon(Icons.add),
+                backgroundColor: AppColors.primary,
+                elevation: AppConstants.cardElevation,
               ),
             ),
           ],

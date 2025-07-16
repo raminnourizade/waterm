@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
+import '../config/app_colors.dart';
+import '../config/app_constants.dart';
+import '../widgets/app_logo.dart';
+import '../widgets/custom_text_field.dart';
+import '../widgets/primary_button.dart';
 import 'homepage.dart';
-import 'map_page.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -20,25 +24,15 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
   @override
   void initState() {
     super.initState();
-
     _animationController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 800),
     );
-
     _slideAnimation = Tween<Offset>(
       begin: const Offset(0, 0.2),
       end: Offset.zero,
-    ).animate(CurvedAnimation(
-      parent: _animationController,
-      curve: Curves.easeOutCubic,
-    ));
-
-    _fadeAnimation = CurvedAnimation(
-      parent: _animationController,
-      curve: Curves.easeIn,
-    );
-
+    ).animate(CurvedAnimation(parent: _animationController, curve: Curves.easeOutCubic));
+    _fadeAnimation = CurvedAnimation(parent: _animationController, curve: Curves.easeIn);
     _animationController.forward();
   }
 
@@ -65,74 +59,47 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
     }
   }
 
-  InputDecoration buildInputDecoration({required String label, required IconData icon}) {
-    return InputDecoration(
-      labelText: label,
-      prefixIcon: Icon(icon),
-      filled: true,
-      fillColor: Colors.white,
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(16),
-        borderSide: BorderSide.none,
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(16),
-        borderSide: const BorderSide(color: Colors.lightBlue, width: 2),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
-        backgroundColor: const Color(0xffe0f7fa),
+        backgroundColor: AppColors.background,
         body: Center(
           child: FadeTransition(
             opacity: _fadeAnimation,
             child: SlideTransition(
               position: _slideAnimation,
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                padding: const EdgeInsets.all(AppConstants.padding),
                 child: SingleChildScrollView(
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Image.asset('assets/logo.png', height: 100),
+                      const AppLogo(),
                       const SizedBox(height: 32),
-                      const Text(
-                        'شرکت آب و فاضلاب',
-                        style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                      Text(
+                        'سامانه ثبت اطلاعت شرکت آب و فاضلاب',
+                        style: Theme.of(context).textTheme.headlineMedium,
                       ),
                       const SizedBox(height: 24),
-                      TextField(
+                      CustomTextField(
                         controller: usernameController,
-                        decoration: buildInputDecoration(label: 'نام کاربری', icon: Icons.person),
+                        label: 'نام کاربری',
+                        icon: Icons.person,
                       ),
                       const SizedBox(height: 16),
-                      TextField(
+                      CustomTextField(
                         controller: passwordController,
+                        label: 'رمز عبور',
+                        icon: Icons.lock,
                         obscureText: true,
-                        decoration: buildInputDecoration(label: 'رمز عبور', icon: Icons.lock),
                       ),
                       const SizedBox(height: 32),
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton.icon(
-                          onPressed: _login,
-                          icon: const Icon(Icons.login),
-                          label: const Text('ورود', style: TextStyle(fontSize: 16)),
-                          style: ElevatedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            backgroundColor: const Color(0xff0288d1),
-                            foregroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                            elevation: 6,
-                          ),
-                        ),
+                      PrimaryButton(
+                        text: 'ورود',
+                        icon: Icons.login,
+                        onPressed: _login,
                       ),
                     ],
                   ),

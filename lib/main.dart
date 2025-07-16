@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'config/app_theme.dart';
 import 'pages/login_page.dart';
 
 void main() {
@@ -15,18 +16,13 @@ class MyApp extends StatelessWidget {
       title: 'اپلیکیشن موقعیت‌یاب',
       debugShowCheckedModeBanner: false,
       locale: const Locale('fa', ''),
-      supportedLocales: const [
-        Locale('fa', ''),
-      ],
+      supportedLocales: const [Locale('fa', '')],
       localizationsDelegates: const [
         GlobalMaterialLocalizations.delegate,
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
-      theme: ThemeData(
-        fontFamily: 'Vazirmatn',
-        useMaterial3: true,
-      ),
+      theme: appTheme,
       home: const LoginPage(),
     );
   }

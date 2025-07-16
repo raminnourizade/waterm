@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
+import '../config/app_colors.dart';
+import '../config/app_constants.dart';
+import '../widgets/app_logo.dart';
+import '../widgets/home_card_button.dart';
+import '../widgets/primary_button.dart';
 import 'map_page.dart';
-import 'login_page.dart'; // اضافه شد
+import 'login_page.dart';
 
 class HomePage extends StatelessWidget {
   const HomePage({super.key});
@@ -13,7 +18,7 @@ class HomePage extends StatelessWidget {
         body: Container(
           decoration: const BoxDecoration(
             gradient: LinearGradient(
-              colors: [Color(0xFFB3E5FC), Color(0xFF0288D1)],
+              colors: [AppColors.lightBlue, AppColors.primary],
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
             ),
@@ -21,29 +26,22 @@ class HomePage extends StatelessWidget {
           child: SafeArea(
             child: Column(
               children: [
-                const SizedBox(height: 24),
-                Image.asset(
-                  'assets/logo.png',
-                  height: 80,
-                ),
+                const SizedBox(height: AppConstants.padding),
+                const AppLogo(),
                 const SizedBox(height: 12),
-                const Text(
+                Text(
                   'سامانه مدیریت آب و فاضلاب',
-                  style: TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF01579B),
-                  ),
+                  style: Theme.of(context).textTheme.headlineLarge,
                 ),
                 const SizedBox(height: 8),
-                const Text(
+                Text(
                   'خوش آمدید!',
-                  style: TextStyle(
-                    fontSize: 18,
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
                     color: Colors.white70,
+                    fontWeight: FontWeight.normal,
                   ),
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: AppConstants.padding),
                 Expanded(
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -52,7 +50,7 @@ class HomePage extends StatelessWidget {
                         HomeCardButton(
                           title: 'مشاهده نقشه',
                           icon: Icons.map,
-                          color: const Color(0xFF0288D1),
+                          color: AppColors.primary,
                           onTap: () {
                             Navigator.push(context, MaterialPageRoute(builder: (_) => const MapPage()));
                           },
@@ -61,16 +59,17 @@ class HomePage extends StatelessWidget {
                         HomeCardButton(
                           title: 'ثبت اطلاعات جدید',
                           icon: Icons.add_circle_outline,
-                          color: const Color(0xFF039BE5),
+                          color: AppColors.accent,
                           onTap: () {
-                            Navigator.push(context, MaterialPageRoute(builder: (_) => const MapPage()));
+                            Navigator.push(context, MaterialPageRoute(builder: (_) => const MapPage(showDialogOnStart: true)));
                           },
                         ),
                         const SizedBox(height: 16),
                         HomeCardButton(
-                          title: 'گزارش‌های ثبت‌شده',
+                          title: 'مشاهده اطلاعات ثبت شده',
                           icon: Icons.history,
-                          color: const Color(0xFF4FC3F7),
+                          color: AppColors.lightBlue,
+                          textColor: AppColors.darkBlue, // فقط این خط را اضافه کن
                           onTap: () {
                             ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(content: Text('این بخش به زودی فعال می‌شود')),
@@ -81,82 +80,30 @@ class HomePage extends StatelessWidget {
                         HomeCardButton(
                           title: 'تنظیمات',
                           icon: Icons.settings,
-                          color: const Color(0xFF01579B),
-                          onTap: () {
-                            // صفحه تنظیمات (در آینده)
-                          },
-                        ),
-                        const SizedBox(height: 16),
-                        // دکمه خروج
-                        HomeCardButton(
-                          title: 'خروج ',
-                          icon: Icons.logout,
-                          color: Colors.red.shade400,
-                          onTap: () {
-                            Navigator.pushAndRemoveUntil(
-                              context,
-                              MaterialPageRoute(builder: (_) => const LoginPage()),
-                                  (route) => false,
-                            );
-                          },
+                          color: AppColors.darkBlue,
+                          onTap: () {},
                         ),
                       ],
                     ),
                   ),
                 ),
-                const SizedBox(height: 12),
+                // دکمه خروج
+                const SizedBox(height: 16),
+                PrimaryButton(
+                  text: 'خروج از حساب',
+                  icon: Icons.logout,
+                  onPressed: () {
+                    Navigator.pushAndRemoveUntil(
+                      context,
+                      MaterialPageRoute(builder: (_) => const LoginPage()),
+                          (route) => false,
+                    );
+                  },
+                  color: Colors.redAccent,
+                ),
+                const SizedBox(height: 24),
               ],
             ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// کد HomeCardButton بدون تغییر است.
-class HomeCardButton extends StatelessWidget {
-  final String title;
-  final IconData icon;
-  final Color color;
-  final VoidCallback onTap;
-
-  const HomeCardButton({
-    super.key,
-    required this.title,
-    required this.icon,
-    required this.color,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
-      elevation: 8,
-      color: color,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(22),
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 12),
-          child: Row(
-            children: [
-              Icon(icon, size: 36, color: Colors.white),
-              const SizedBox(width: 18),
-              Expanded(
-                child: Text(
-                  title,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 19,
-                    fontWeight: FontWeight.bold,
-                  ),
-                  textAlign: TextAlign.right,
-                ),
-              ),
-              const Icon(Icons.chevron_left, color: Colors.white, size: 30),
-            ],
           ),
         ),
       ),
