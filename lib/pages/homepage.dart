@@ -6,6 +6,7 @@ import '../widgets/home_card_button.dart';
 import '../widgets/primary_button.dart';
 import 'map_page.dart';
 import 'login_page.dart';
+import 'readings_page.dart';
 
 class HomePage extends StatelessWidget {
   const HomePage({super.key});
@@ -61,7 +62,7 @@ class HomePage extends StatelessWidget {
                           icon: Icons.add_circle_outline,
                           color: AppColors.accent,
                           onTap: () {
-                            Navigator.push(context, MaterialPageRoute(builder: (_) => const MapPage(showDialogOnStart: true)));
+                            Navigator.push(context, MaterialPageRoute(builder: (_) => const MapPage()));
                           },
                         ),
                         const SizedBox(height: 16),
@@ -69,13 +70,12 @@ class HomePage extends StatelessWidget {
                           title: 'مشاهده اطلاعات ثبت شده',
                           icon: Icons.history,
                           color: AppColors.lightBlue,
-                          textColor: AppColors.darkBlue, // فقط این خط را اضافه کن
+                          textColor: AppColors.darkBlue,
                           onTap: () {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('این بخش به زودی فعال می‌شود')),
-                            );
+                            Navigator.push(context, MaterialPageRoute(builder: (_) => const ReadingsPage()));
                           },
                         ),
+
                         const SizedBox(height: 16),
                         HomeCardButton(
                           title: 'تنظیمات',

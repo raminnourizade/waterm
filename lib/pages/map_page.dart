@@ -1,28 +1,138 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
-import 'package:flutter_map/flutter_map.dart';
-import 'package:latlong2/latlong.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:uuid/uuid.dart';
+
 import '../config/app_colors.dart';
-import '../config/app_constants.dart';
-import '../widgets/custom_input_dialog.dart';
+import '../models/reading_model.dart';
+import 'package:hive/hive.dart';
 
 class MapPage extends StatefulWidget {
-  final bool showDialogOnStart;
-  const MapPage({super.key, this.showDialogOnStart = false});
+  const MapPage({super.key});
 
   @override
   State<MapPage> createState() => _MapPageState();
 }
 
 class _MapPageState extends State<MapPage> {
+  GoogleMapController? mapController;
+  LatLng? _currentLatLng;
+  Marker? _marker;
+
   @override
   void initState() {
     super.initState();
-    // نمایش فرم ثبت اطلاعات در شروع، در صورت نیاز
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (widget.showDialogOnStart) {
-        showCustomInputDialog(context);
-      }
+    _determinePosition();
+  }
+
+  Future<void> _determinePosition() async {
+    bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) {
+      return;
+    }
+
+    LocationPermission permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+    }
+
+    Position position = await Geolocator.getCurrentPosition();
+    setState(() {
+      _currentLatLng = LatLng(position.latitude, position.longitude);
+      _marker = Marker(
+        markerId: const MarkerId('current_location'),
+        position: _currentLatLng!,
+        draggable: true,
+        onDragEnd: (newPos) {
+          setState(() {
+            _currentLatLng = newPos;
+          });
+        },
+      );
     });
+  }
+
+  Future<void> _showFormDialog() async {
+    final subscriptionController = TextEditingController();
+    final phoneController = TextEditingController();
+    final descController = TextEditingController();
+    XFile? image;
+
+    await showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('ثبت اطلاعات مشترک'),
+        content: SingleChildScrollView(
+          child: Column(
+            children: [
+              TextField(
+                controller: subscriptionController,
+                decoration: const InputDecoration(labelText: 'شماره اشتراک'),
+              ),
+              TextField(
+                controller: phoneController,
+                decoration: const InputDecoration(labelText: 'شماره موبایل'),
+              ),
+              TextField(
+                controller: descController,
+                decoration: const InputDecoration(labelText: 'توضیحات'),
+              ),
+              const SizedBox(height: 10),
+              ElevatedButton.icon(
+                icon: const Icon(Icons.camera_alt),
+                label: const Text("افزودن تصویر (اختیاری)"),
+                onPressed: () async {
+                  final picked = await ImagePicker().pickImage(source: ImageSource.camera);
+                  if (picked != null) {
+                    image = picked;
+                  }
+                },
+              )
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            child: const Text('لغو'),
+            onPressed: () => Navigator.pop(context),
+          ),
+          ElevatedButton(
+            child: const Text('ذخیره'),
+            onPressed: () async {
+              final id = const Uuid().v4();
+              final path = image != null
+                  ? '${(await getApplicationDocumentsDirectory()).path}/$id.jpg'
+                  : null;
+
+              if (image != null && path != null) {
+                await File(image!.path).copy(path);
+              }
+
+              final box = await Hive.openBox<ReadingModel>('readings');
+              await box.add(ReadingModel(
+                id: id,
+                subscriptionNumber: subscriptionController.text,
+                phone: phoneController.text,
+                description: descController.text,
+                lat: _currentLatLng?.latitude ?? 0,
+                lng: _currentLatLng?.longitude ?? 0,
+                imagePath: path,
+                createdAt: DateTime.now(),
+              ));
+
+              Navigator.pop(context);
+              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                content: Text('اطلاعات با موفقیت ذخیره شد'),
+              ));
+            },
+          )
+        ],
+      ),
+    );
   }
 
   @override
@@ -31,40 +141,25 @@ class _MapPageState extends State<MapPage> {
       textDirection: TextDirection.rtl,
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('نقشه آب و فاضلاب'),
-          centerTitle: true,
+          title: const Text("نقشه و ثبت مکان مشترک"),
           backgroundColor: AppColors.primary,
+          centerTitle: true,
         ),
-        body: Stack(
-          children: [
-            // نقشه
-            FlutterMap(
-              options: MapOptions(
-                center: LatLng(38.0816, 46.2919), // مرکز تبریز
-                zoom: 13.0,
-              ),
-              children: [
-                TileLayer(
-                  urlTemplate: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
-                  userAgentPackageName: 'com.waterm',
-                ),
-              ],
-            ),
-            // دکمه ثبت اطلاعات
-            Positioned(
-              bottom: 32,
-              right: 32,
-              child: FloatingActionButton.extended(
-                onPressed: () {
-                  showCustomInputDialog(context);
-                },
-                label: const Text('ثبت اطلاعات'),
-                icon: const Icon(Icons.add),
-                backgroundColor: AppColors.primary,
-                elevation: AppConstants.cardElevation,
-              ),
-            ),
-          ],
+        body: _currentLatLng == null
+            ? const Center(child: CircularProgressIndicator())
+            : GoogleMap(
+          initialCameraPosition: CameraPosition(
+            target: _currentLatLng!,
+            zoom: 16,
+          ),
+          onMapCreated: (controller) => mapController = controller,
+          markers: _marker != null ? {_marker!} : {},
+        ),
+        floatingActionButton: FloatingActionButton.extended(
+          onPressed: _showFormDialog,
+          label: const Text('ثبت اطلاعات'),
+          icon: const Icon(Icons.add_location),
+          backgroundColor: AppColors.primary,
         ),
       ),
     );
