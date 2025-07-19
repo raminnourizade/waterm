@@ -59,7 +59,7 @@ class HomePage extends StatelessWidget {
                         ),
                         const SizedBox(height: 16),
                         HomeCardButton(
-                          title: 'ارسال اطلاعات به سرور',
+                          title:  'ارسال اطلاعات به سرور',
                           icon: Icons.add_circle_outline,
                           color: AppColors.accent,
                           onTap: () {
