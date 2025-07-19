@@ -9,7 +9,6 @@ import 'pages/login_page.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // مقداردهی اولیه Hive
   await Hive.initFlutter();
 
   // ثبت Adapter برای مدل ReadingModel

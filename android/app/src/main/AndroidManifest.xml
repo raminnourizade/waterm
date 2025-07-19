@@ -7,14 +7,14 @@
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
 
     <application
-        android:label="waterm"
+        android:label="آب یار"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
 
         <!-- کلید API نقشه گوگل -->
         <meta-data
             android:name="com.google.android.geo.API_KEY"
-            android:value="AIzaSyAqgpy8Q_78YebDS3jWq1exZg4O5UqK3G0" />
+            android:value="AIzaSyC34hueQwUaW4a0VL4boXCmAxury7R5lJE" />
 
         <activity
             android:name=".MainActivity"

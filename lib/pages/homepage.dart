@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:waterm/pages/settings_page.dart';
 import '../config/app_colors.dart';
 import '../config/app_constants.dart';
 import '../widgets/app_logo.dart';
@@ -31,12 +32,12 @@ class HomePage extends StatelessWidget {
                 const AppLogo(),
                 const SizedBox(height: 12),
                 Text(
-                  'سامانه مدیریت آب و فاضلاب',
+                  'سامانه آب یار',
                   style: Theme.of(context).textTheme.headlineLarge,
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'خوش آمدید!',
+                  '',
                   style: Theme.of(context).textTheme.titleLarge?.copyWith(
                     color: Colors.white70,
                     fontWeight: FontWeight.normal,
@@ -49,7 +50,7 @@ class HomePage extends StatelessWidget {
                     child: ListView(
                       children: [
                         HomeCardButton(
-                          title: 'مشاهده نقشه',
+                          title: 'ثبت اطلاعات جدید',
                           icon: Icons.map,
                           color: AppColors.primary,
                           onTap: () {
@@ -58,18 +59,18 @@ class HomePage extends StatelessWidget {
                         ),
                         const SizedBox(height: 16),
                         HomeCardButton(
-                          title: 'ثبت اطلاعات جدید',
+                          title: 'ارسال اطلاعات به سرور',
                           icon: Icons.add_circle_outline,
                           color: AppColors.accent,
                           onTap: () {
-                            Navigator.push(context, MaterialPageRoute(builder: (_) => const MapPage()));
+                            //Navigator.push(context, MaterialPageRoute(builder: (_) => const MapPage()));
                           },
                         ),
                         const SizedBox(height: 16),
                         HomeCardButton(
-                          title: 'مشاهده اطلاعات ثبت شده',
+                          title: 'گزارش اطلاعات ثبت شده',
                           icon: Icons.history,
-                          color: AppColors.lightBlue,
+                          color: AppColors.accent,
                           textColor: AppColors.darkBlue,
                           onTap: () {
                             Navigator.push(context, MaterialPageRoute(builder: (_) => const ReadingsPage()));
@@ -81,27 +82,17 @@ class HomePage extends StatelessWidget {
                           title: 'تنظیمات',
                           icon: Icons.settings,
                           color: AppColors.darkBlue,
-                          onTap: () {},
+                          onTap: () {
+                            Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsPage()));
+
+                          },
                         ),
                       ],
                     ),
                   ),
                 ),
                 // دکمه خروج
-                const SizedBox(height: 16),
-                PrimaryButton(
-                  text: 'خروج از حساب',
-                  icon: Icons.logout,
-                  onPressed: () {
-                    Navigator.pushAndRemoveUntil(
-                      context,
-                      MaterialPageRoute(builder: (_) => const LoginPage()),
-                          (route) => false,
-                    );
-                  },
-                  color: Colors.redAccent,
-                ),
-                const SizedBox(height: 24),
+
               ],
             ),
           ),
