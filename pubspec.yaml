@@ -19,6 +19,8 @@ dependencies:
   google_maps_flutter: ^2.5.3
   geolocator: ^10.1.0
 
+
+
   # 📦 ذخیره‌سازی آفلاین
   hive: ^2.2.3
   hive_flutter: ^1.1.0
