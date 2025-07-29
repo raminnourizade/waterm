@@ -19,6 +19,8 @@ dependencies:
   google_maps_flutter: ^2.5.3
   geolocator: ^10.1.0
 
+  flutter_launcher_icons: ^0.13.1
+
 
 
   # 📦 ذخیره‌سازی آفلاین
@@ -49,3 +51,8 @@ flutter:
 
   assets:
     - assets/logo.png
+
+flutter_icons:
+  android: true
+  ios: true
+  image_path: "assets/logo.png"

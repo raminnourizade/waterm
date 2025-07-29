@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:hive/hive.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../models/reading_model.dart';
 import '../config/app_colors.dart';
 
@@ -26,6 +27,8 @@ class _ReadingsPageState extends State<ReadingsPage> {
     final box = await Hive.openBox<ReadingModel>('readings');
     setState(() {
       readings = box.values.toList();
+      // مرتب‌سازی بر اساس زمان ایجاد
+      readings.sort((a, b) => a.createdAt.compareTo(b.createdAt));
     });
   }
 
@@ -33,14 +36,12 @@ class _ReadingsPageState extends State<ReadingsPage> {
   String _generateCsv() {
     final csvBuffer = StringBuffer();
 
-    // عنوان ستون‌ها (Header)
     csvBuffer.writeln('id,subscriptionNumber,phone,description,lat,lng,createdAt');
 
-    // سطرهای داده
     for (var r in readings) {
       final row = [
         r.id,
-        r.subscriptionNumber.replaceAll(',', ' '), // جلوگیری از مشکل کاما در داده
+        r.subscriptionNumber.replaceAll(',', ' '),
         r.phone.replaceAll(',', ' '),
         r.description.replaceAll(',', ' '),
         r.lat.toString(),
@@ -53,7 +54,6 @@ class _ReadingsPageState extends State<ReadingsPage> {
     return csvBuffer.toString();
   }
 
-  /// درخواست مجوز ذخیره‌سازی (ویژه اندروید)
   Future<bool> _checkPermission() async {
     if (Platform.isAndroid) {
       final status = await Permission.storage.status;
@@ -63,11 +63,9 @@ class _ReadingsPageState extends State<ReadingsPage> {
       }
       return true;
     }
-    // روی iOS نیازی نیست معمولا
     return true;
   }
 
-  /// ذخیره فایل CSV و نمایش پیام
   Future<void> _saveCsvFile() async {
     if (readings.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -85,12 +83,9 @@ class _ReadingsPageState extends State<ReadingsPage> {
     try {
       final csvString = _generateCsv();
 
-      // مسیر دایرکتوری برای ذخیره
       Directory? directory;
       if (Platform.isAndroid) {
         directory = await getExternalStorageDirectory();
-        // اختصاص مسیر پوشه Downloads در اندروید
-        // مسیر فایل ممکن است طولانی باشد، پوشه Downloads را می‌سازیم
         String newPath = "";
         final paths = directory!.path.split("/");
         for (int i = 1; i < paths.length; i++) {
@@ -125,6 +120,21 @@ class _ReadingsPageState extends State<ReadingsPage> {
     }
   }
 
+  void _goToMapPage() {
+    if (readings.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('برای نمایش نقشه، داده‌ای وجود ندارد')));
+      return;
+    }
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ReadingsMapPage(readings: readings),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Directionality(
@@ -138,6 +148,11 @@ class _ReadingsPageState extends State<ReadingsPage> {
               icon: const Icon(Icons.download),
               tooltip: 'دانلود فایل CSV',
               onPressed: _saveCsvFile,
+            ),
+            IconButton(
+              icon: const Icon(Icons.map),
+              tooltip: 'نمایش روی نقشه',
+              onPressed: _goToMapPage,
             ),
           ],
         ),
@@ -165,6 +180,68 @@ class _ReadingsPageState extends State<ReadingsPage> {
               ),
             );
           },
+        ),
+      ),
+    );
+  }
+}
+
+class ReadingsMapPage extends StatelessWidget {
+  final List<ReadingModel> readings;
+
+  const ReadingsMapPage({super.key, required this.readings});
+
+  @override
+  Widget build(BuildContext context) {
+    // تولید Markers و مسیر Polyline بر اساس نقاط مرتب‌شده
+    final markers = <Marker>{};
+    final polylineCoordinates = <LatLng>[];
+
+    for (int i = 0; i < readings.length; i++) {
+      final r = readings[i];
+      final position = LatLng(r.lat, r.lng);
+      polylineCoordinates.add(position);
+
+      markers.add(
+        Marker(
+          markerId: MarkerId(r.id.toString()),
+          position: position,
+          infoWindow: InfoWindow(
+            title: 'اشتراک: ${r.subscriptionNumber}',
+            snippet: 'تاریخ: ${r.createdAt.toString().substring(0, 19)}',
+          ),
+          icon: BitmapDescriptor.defaultMarkerWithHue(
+            i == 0 ? BitmapDescriptor.hueGreen : BitmapDescriptor.hueAzure,
+          ),
+        ),
+      );
+    }
+
+    final polyline = Polyline(
+      polylineId: const PolylineId('route'),
+      points: polylineCoordinates,
+      color: Colors.blue,
+      width: 5,
+    );
+
+    return Directionality(
+      textDirection: TextDirection.rtl,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('مسیر طی شده روی نقشه'),
+          backgroundColor: AppColors.primary,
+        ),
+        body: GoogleMap(
+          initialCameraPosition: CameraPosition(
+            target: polylineCoordinates.isNotEmpty
+                ? polylineCoordinates.first
+                : const LatLng(0, 0),
+            zoom: 14,
+          ),
+          markers: markers,
+          polylines: {polyline},
+          myLocationButtonEnabled: true,
+          myLocationEnabled: true,
         ),
       ),
     );

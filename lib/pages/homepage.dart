@@ -32,7 +32,7 @@ class HomePage extends StatelessWidget {
                 const AppLogo(),
                 const SizedBox(height: 12),
                 Text(
-                  'سامانه آب یار',
+                  'سامانه جانمایی مشترکین',
                   style: Theme.of(context).textTheme.headlineLarge,
                 ),
                 const SizedBox(height: 8),
