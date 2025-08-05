@@ -27,16 +27,13 @@ class _ReadingsPageState extends State<ReadingsPage> {
     final box = await Hive.openBox<ReadingModel>('readings');
     setState(() {
       readings = box.values.toList();
-      // مرتب‌سازی بر اساس زمان ایجاد
       readings.sort((a, b) => a.createdAt.compareTo(b.createdAt));
     });
   }
 
-  /// تولید رشته CSV از داده‌ها
   String _generateCsv() {
     final csvBuffer = StringBuffer();
-
-    csvBuffer.writeln('id,subscriptionNumber,phone,description,lat,lng,createdAt');
+    csvBuffer.writeln('id,subscriptionNumber,phone,description,lat,lng,altitude,accuracy,createdAt');
 
     for (var r in readings) {
       final row = [
@@ -46,6 +43,8 @@ class _ReadingsPageState extends State<ReadingsPage> {
         r.description.replaceAll(',', ' '),
         r.lat.toString(),
         r.lng.toString(),
+        r.altitude?.toStringAsFixed(2) ?? '',
+        r.accuracy?.toStringAsFixed(2) ?? '',
         r.createdAt.toIso8601String(),
       ].join(',');
       csvBuffer.writeln(row);
@@ -107,7 +106,6 @@ class _ReadingsPageState extends State<ReadingsPage> {
 
       final filePath = '${directory.path}/readings_${DateTime.now().millisecondsSinceEpoch}.csv';
       final file = File(filePath);
-
       await file.writeAsString(csvString);
 
       ScaffoldMessenger.of(context).showSnackBar(
@@ -171,8 +169,9 @@ class _ReadingsPageState extends State<ReadingsPage> {
                   children: [
                     Text('موبایل: ${r.phone}'),
                     Text('توضیح: ${r.description}'),
-                    Text(
-                        'مکان: (${r.lat.toStringAsFixed(4)}, ${r.lng.toStringAsFixed(4)})'),
+                    Text('مکان: (${r.lat.toStringAsFixed(4)}, ${r.lng.toStringAsFixed(4)})'),
+                    Text('ارتفاع: ${r.altitude?.toStringAsFixed(2) ?? "-"} متر'),
+                    Text('دقت: ${r.accuracy?.toStringAsFixed(2) ?? "-"} متر'),
                     Text('تاریخ: ${r.createdAt.toString().substring(0, 19)}'),
                   ],
                 ),
@@ -190,6 +189,7 @@ class ReadingsMapPage extends StatelessWidget {
   final List<ReadingModel> readings;
 
   const ReadingsMapPage({super.key, required this.readings});
+
 
   @override
   Widget build(BuildContext context) {

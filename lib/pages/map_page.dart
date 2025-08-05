@@ -18,8 +18,11 @@ class MapPage extends StatefulWidget {
 }
 
 class _MapPageState extends State<MapPage> with AutomaticKeepAliveClientMixin {
+  LatLng _mapStartLatLng = const LatLng(35.6892, 51.3890); // مقدار پیش‌فرض (تهران)
   GoogleMapController? mapController;
   LatLng? _currentLatLng;
+  double? _altitude;
+  double? _accuracy;
   Marker? _currentMarker;
   MapType _currentMapType = MapType.satellite;
 
@@ -41,6 +44,14 @@ class _MapPageState extends State<MapPage> with AutomaticKeepAliveClientMixin {
   }
 
   Future<void> _loadInitialData() async {
+    final box = await Hive.openBox<ReadingModel>('readings');
+    if (box.isNotEmpty) {
+      final last = box.values.last;
+      setState(() {
+        _mapStartLatLng = LatLng(last.lat, last.lng);
+      });
+    }
+
     await _determinePosition();
     await _loadPreviousMarkers();
   }
@@ -58,9 +69,12 @@ class _MapPageState extends State<MapPage> with AutomaticKeepAliveClientMixin {
 
     Position position = await Geolocator.getCurrentPosition();
     _currentLatLng = LatLng(position.latitude, position.longitude);
+    _altitude = position.altitude;
+    _accuracy = position.accuracy;
 
     _currentMarker = Marker(
       markerId: const MarkerId('current_location'),
+      icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueBlue),
       position: _currentLatLng!,
       draggable: true,
       onDragEnd: (newPos) {
@@ -73,6 +87,13 @@ class _MapPageState extends State<MapPage> with AutomaticKeepAliveClientMixin {
     setState(() {
       _allMarkers.add(_currentMarker!);
     });
+
+    // حرکت دوربین بعد از دریافت GPS
+    if (mapController != null) {
+      mapController?.animateCamera(
+        CameraUpdate.newLatLng(_currentLatLng!),
+      );
+    }
   }
 
   Future<void> _loadPreviousMarkers() async {
@@ -105,6 +126,7 @@ class _MapPageState extends State<MapPage> with AutomaticKeepAliveClientMixin {
     _currentLatLng = target;
     _currentMarker = Marker(
       markerId: const MarkerId('current_location'),
+      icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueBlue),
       position: target,
       draggable: true,
       onDragEnd: (newPos) {
@@ -186,7 +208,6 @@ class _MapPageState extends State<MapPage> with AutomaticKeepAliveClientMixin {
               );
               await box.add(newReading);
 
-              // اضافه کردن به مارکرهای قبلی
               final newMarker = Marker(
                 markerId: MarkerId(id),
                 position: LatLng(newReading.lat, newReading.lng),
@@ -223,20 +244,26 @@ class _MapPageState extends State<MapPage> with AutomaticKeepAliveClientMixin {
           backgroundColor: AppColors.primary,
           centerTitle: true,
         ),
-        body: _currentLatLng == null
-            ? const Center(child: CircularProgressIndicator())
-            : GoogleMap(
+        body: GoogleMap(
           initialCameraPosition: CameraPosition(
-            target: _currentLatLng!,
+            target: _mapStartLatLng,
             zoom: 16,
           ),
-          mapType: _currentMapType,
-          onMapCreated: (controller) => mapController = controller,
+          onMapCreated: (controller) {
+            mapController = controller;
+            if (_currentLatLng != null) {
+              mapController?.animateCamera(
+                CameraUpdate.newLatLng(_currentLatLng!),
+              );
+            }
+          },
           markers: _allMarkers,
+          mapType: _currentMapType,
           onTap: (LatLng newLatLng) {
             _currentLatLng = newLatLng;
             _currentMarker = Marker(
               markerId: const MarkerId('current_location'),
+              icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueBlue),
               position: newLatLng,
               draggable: true,
               onDragEnd: (newPos) {

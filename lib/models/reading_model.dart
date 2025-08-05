@@ -1,6 +1,4 @@
-
 import 'package:hive/hive.dart';
-
 part 'reading_model.g.dart';
 
 @HiveType(typeId: 0)
@@ -24,10 +22,16 @@ class ReadingModel extends HiveObject {
   double lng;
 
   @HiveField(6)
-  String? imagePath;
+  String? imagePath; // مسیر عکس (قدیمی بوده و لازمه برگرده)
 
   @HiveField(7)
   DateTime createdAt;
+
+  @HiveField(8)
+  double? altitude; // ارتفاع
+
+  @HiveField(9)
+  double? accuracy; // دقت GPS
 
   ReadingModel({
     required this.id,
@@ -38,5 +42,7 @@ class ReadingModel extends HiveObject {
     required this.lng,
     this.imagePath,
     required this.createdAt,
+    this.altitude,
+    this.accuracy,
   });
 }
