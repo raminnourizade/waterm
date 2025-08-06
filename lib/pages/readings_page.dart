@@ -16,6 +16,12 @@ class ReadingsPage extends StatefulWidget {
 
 class _ReadingsPageState extends State<ReadingsPage> {
   List<ReadingModel> readings = [];
+  List<ReadingModel> filteredReadings = [];
+
+  DateTime? startDate;
+  DateTime? endDate;
+  String subscriptionFilter = '';
+  LatLngBounds? mapBoundsFilter;
 
   @override
   void initState() {
@@ -28,14 +34,63 @@ class _ReadingsPageState extends State<ReadingsPage> {
     setState(() {
       readings = box.values.toList();
       readings.sort((a, b) => a.createdAt.compareTo(b.createdAt));
+      filteredReadings = List.from(readings);
     });
+  }
+
+  void _applyFilters() {
+    setState(() {
+      filteredReadings = readings.where((r) {
+        bool match = true;
+
+        // فیلتر تاریخ
+        if (startDate != null) {
+          match &= r.createdAt.isAfter(startDate!) || r.createdAt.isAtSameMomentAs(startDate!);
+        }
+        if (endDate != null) {
+          match &= r.createdAt.isBefore(endDate!) || r.createdAt.isAtSameMomentAs(endDate!);
+        }
+
+        // فیلتر شماره اشتراک
+        if (subscriptionFilter.isNotEmpty) {
+          match &= r.subscriptionNumber.contains(subscriptionFilter);
+        }
+
+        // فیلتر محدوده نقشه
+        if (mapBoundsFilter != null) {
+          match &= mapBoundsFilter!.contains(LatLng(r.lat, r.lng));
+        }
+
+        return match;
+      }).toList();
+    });
+  }
+
+  Future<void> _pickDate({required bool isStart}) async {
+    DateTime initial = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: initial,
+      firstDate: DateTime(2000),
+      lastDate: DateTime(2100),
+    );
+    if (picked != null) {
+      setState(() {
+        if (isStart) {
+          startDate = picked;
+        } else {
+          endDate = picked;
+        }
+      });
+      _applyFilters();
+    }
   }
 
   String _generateCsv() {
     final csvBuffer = StringBuffer();
     csvBuffer.writeln('id,subscriptionNumber,phone,description,lat,lng,altitude,accuracy,createdAt');
 
-    for (var r in readings) {
+    for (var r in filteredReadings) {
       final row = [
         r.id,
         r.subscriptionNumber.replaceAll(',', ' '),
@@ -66,7 +121,7 @@ class _ReadingsPageState extends State<ReadingsPage> {
   }
 
   Future<void> _saveCsvFile() async {
-    if (readings.isEmpty) {
+    if (filteredReadings.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('هیچ داده‌ای برای خروجی CSV وجود ندارد')));
       return;
@@ -119,7 +174,7 @@ class _ReadingsPageState extends State<ReadingsPage> {
   }
 
   void _goToMapPage() {
-    if (readings.isEmpty) {
+    if (filteredReadings.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('برای نمایش نقشه، داده‌ای وجود ندارد')));
       return;
@@ -128,7 +183,15 @@ class _ReadingsPageState extends State<ReadingsPage> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => ReadingsMapPage(readings: readings),
+        builder: (_) => ReadingsMapPage(
+          readings: filteredReadings,
+          onBoundsSelected: (bounds) {
+            setState(() {
+              mapBoundsFilter = bounds;
+            });
+            _applyFilters();
+          },
+        ),
       ),
     );
   }
@@ -154,51 +217,88 @@ class _ReadingsPageState extends State<ReadingsPage> {
             ),
           ],
         ),
-        body: readings.isEmpty
-            ? const Center(child: Text('هیچ اطلاعاتی ثبت نشده است.'))
-            : ListView.builder(
-          itemCount: readings.length,
-          itemBuilder: (context, index) {
-            final r = readings[index];
-            return Card(
-              margin: const EdgeInsets.all(8),
-              child: ListTile(
-                title: Text('اشتراک: ${r.subscriptionNumber}'),
-                subtitle: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('موبایل: ${r.phone}'),
-                    Text('توضیح: ${r.description}'),
-                    Text('مکان: (${r.lat.toStringAsFixed(4)}, ${r.lng.toStringAsFixed(4)})'),
-                    Text('ارتفاع: ${r.altitude?.toStringAsFixed(2) ?? "-"} متر'),
-                    Text('دقت: ${r.accuracy?.toStringAsFixed(2) ?? "-"} متر'),
-                    Text('تاریخ: ${r.createdAt.toString().substring(0, 19)}'),
-                  ],
-                ),
-                isThreeLine: true,
+        body: Column(
+          children: [
+            // بخش فیلترها
+            Padding(
+              padding: const EdgeInsets.all(8),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      decoration: const InputDecoration(labelText: 'شماره اشتراک'),
+                      onChanged: (val) {
+                        subscriptionFilter = val;
+                        _applyFilters();
+                      },
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.date_range),
+                    onPressed: () => _pickDate(isStart: true),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.date_range_outlined),
+                    onPressed: () => _pickDate(isStart: false),
+                  ),
+                ],
               ),
-            );
-          },
+            ),
+            Expanded(
+              child: filteredReadings.isEmpty
+                  ? const Center(child: Text('هیچ اطلاعاتی ثبت نشده است.'))
+                  : ListView.builder(
+                itemCount: filteredReadings.length,
+                itemBuilder: (context, index) {
+                  final r = filteredReadings[index];
+                  return Card(
+                    margin: const EdgeInsets.all(8),
+                    child: ListTile(
+                      title: Text('اشتراک: ${r.subscriptionNumber}'),
+                      subtitle: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('موبایل: ${r.phone}'),
+                          Text('توضیح: ${r.description}'),
+                          Text('(${r.lat.toStringAsFixed(4)}, ${r.lng.toStringAsFixed(4)})'),
+                          Text('ارتفاع: ${r.altitude?.toStringAsFixed(2) ?? "-"} متر'),
+                          Text('دقت: ${r.accuracy?.toStringAsFixed(2) ?? "-"} متر'),
+                          Text('تاریخ: ${r.createdAt.toString().substring(0, 19)}'),
+                        ],
+                      ),
+                      isThreeLine: true,
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
         ),
       ),
     );
   }
 }
 
-class ReadingsMapPage extends StatelessWidget {
+class ReadingsMapPage extends StatefulWidget {
   final List<ReadingModel> readings;
+  final Function(LatLngBounds)? onBoundsSelected;
 
-  const ReadingsMapPage({super.key, required this.readings});
+  const ReadingsMapPage({super.key, required this.readings, this.onBoundsSelected});
 
+  @override
+  State<ReadingsMapPage> createState() => _ReadingsMapPageState();
+}
+
+class _ReadingsMapPageState extends State<ReadingsMapPage> {
+  GoogleMapController? _controller;
 
   @override
   Widget build(BuildContext context) {
-    // تولید Markers و مسیر Polyline بر اساس نقاط مرتب‌شده
     final markers = <Marker>{};
     final polylineCoordinates = <LatLng>[];
 
-    for (int i = 0; i < readings.length; i++) {
-      final r = readings[i];
+    for (int i = 0; i < widget.readings.length; i++) {
+      final r = widget.readings[i];
       final position = LatLng(r.lat, r.lng);
       polylineCoordinates.add(position);
 
@@ -228,8 +328,21 @@ class ReadingsMapPage extends StatelessWidget {
       textDirection: TextDirection.rtl,
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('مسیر طی شده روی نقشه'),
+          title: const Text('مسیر روی نقشه'),
           backgroundColor: AppColors.primary,
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.check),
+              tooltip: 'انتخاب محدوده فعلی',
+              onPressed: () async {
+                if (_controller != null) {
+                  final bounds = await _controller!.getVisibleRegion();
+                  widget.onBoundsSelected?.call(bounds);
+                  Navigator.pop(context);
+                }
+              },
+            )
+          ],
         ),
         body: GoogleMap(
           initialCameraPosition: CameraPosition(
@@ -238,6 +351,7 @@ class ReadingsMapPage extends StatelessWidget {
                 : const LatLng(0, 0),
             zoom: 14,
           ),
+          onMapCreated: (controller) => _controller = controller,
           markers: markers,
           polylines: {polyline},
           myLocationButtonEnabled: true,
