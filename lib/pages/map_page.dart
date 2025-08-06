@@ -18,7 +18,7 @@ class MapPage extends StatefulWidget {
 }
 
 class _MapPageState extends State<MapPage> with AutomaticKeepAliveClientMixin {
-  LatLng _mapStartLatLng = const LatLng(35.6892, 51.3890); // مقدار پیش‌فرض (تهران)
+  LatLng _mapStartLatLng = const LatLng(35.6892, 51.3890); // پیش‌فرض تهران
   GoogleMapController? mapController;
   LatLng? _currentLatLng;
   double? _altitude;
@@ -35,27 +35,33 @@ class _MapPageState extends State<MapPage> with AutomaticKeepAliveClientMixin {
   @override
   void initState() {
     super.initState();
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (widget.showDialogOnStart) {
         _showFormDialog();
       }
     });
-    _loadInitialData();
+
+    _initMapAndLocation();
   }
 
-  Future<void> _loadInitialData() async {
+  /// لود اولیه: آخرین نقطه ثبت شده را می‌گیرد و مارکرها را موازی با GPS لود می‌کند
+  Future<void> _initMapAndLocation() async {
     final box = await Hive.openBox<ReadingModel>('readings');
+
+    // آخرین نقطه ذخیره شده را برای شروع نقشه انتخاب کن
     if (box.isNotEmpty) {
       final last = box.values.last;
-      setState(() {
-        _mapStartLatLng = LatLng(last.lat, last.lng);
-      });
+      _mapStartLatLng = LatLng(last.lat, last.lng);
+      _currentLatLng = _mapStartLatLng;
     }
 
-    await _determinePosition();
-    await _loadPreviousMarkers();
+    // موازی: مارکرها را لود کن و GPS را بگیر
+    _loadPreviousMarkers();
+    _determinePosition(); // بدون await تا نقشه سریع بالا بیاد
   }
 
+  /// گرفتن موقعیت فعلی با GPS
   Future<void> _determinePosition() async {
     if (_locationLoaded) return;
     _locationLoaded = true;
@@ -67,35 +73,40 @@ class _MapPageState extends State<MapPage> with AutomaticKeepAliveClientMixin {
       permission = await Geolocator.requestPermission();
     }
 
-    Position position = await Geolocator.getCurrentPosition();
-    _currentLatLng = LatLng(position.latitude, position.longitude);
-    _altitude = position.altitude;
-    _accuracy = position.accuracy;
+    try {
+      Position position = await Geolocator.getCurrentPosition();
+      _currentLatLng = LatLng(position.latitude, position.longitude);
+      _altitude = position.altitude;
+      _accuracy = position.accuracy;
 
-    _currentMarker = Marker(
-      markerId: const MarkerId('current_location'),
-      icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueBlue),
-      position: _currentLatLng!,
-      draggable: true,
-      onDragEnd: (newPos) {
-        setState(() {
-          _currentLatLng = newPos;
-        });
-      },
-    );
-
-    setState(() {
-      _allMarkers.add(_currentMarker!);
-    });
-
-    // حرکت دوربین بعد از دریافت GPS
-    if (mapController != null) {
-      mapController?.animateCamera(
-        CameraUpdate.newLatLng(_currentLatLng!),
+      _currentMarker = Marker(
+        markerId: const MarkerId('current_location'),
+        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueBlue),
+        position: _currentLatLng!,
+        draggable: true,
+        onDragEnd: (newPos) {
+          setState(() {
+            _currentLatLng = newPos;
+          });
+        },
       );
+
+      setState(() {
+        _allMarkers.add(_currentMarker!);
+      });
+
+      // بعد از گرفتن GPS، دوربین به موقعیت فعلی حرکت کند
+      if (mapController != null) {
+        mapController?.animateCamera(
+          CameraUpdate.newLatLng(_currentLatLng!),
+        );
+      }
+    } catch (e) {
+      debugPrint("Error getting location: $e");
     }
   }
 
+  /// لود مارکرهای ذخیره‌شده
   Future<void> _loadPreviousMarkers() async {
     final box = await Hive.openBox<ReadingModel>('readings');
     for (var reading in box.values) {
@@ -115,6 +126,7 @@ class _MapPageState extends State<MapPage> with AutomaticKeepAliveClientMixin {
     setState(() {});
   }
 
+  /// رفتن به مکان فعلی
   Future<void> _goToCurrentLocation() async {
     Position position = await Geolocator.getCurrentPosition();
     LatLng target = LatLng(position.latitude, position.longitude);
@@ -140,6 +152,7 @@ class _MapPageState extends State<MapPage> with AutomaticKeepAliveClientMixin {
     });
   }
 
+  /// فرم ثبت اطلاعات مشترک
   Future<void> _showFormDialog() async {
     final subscriptionController = TextEditingController();
     final phoneController = TextEditingController();
@@ -251,11 +264,6 @@ class _MapPageState extends State<MapPage> with AutomaticKeepAliveClientMixin {
           ),
           onMapCreated: (controller) {
             mapController = controller;
-            if (_currentLatLng != null) {
-              mapController?.animateCamera(
-                CameraUpdate.newLatLng(_currentLatLng!),
-              );
-            }
           },
           markers: _allMarkers,
           mapType: _currentMapType,
