@@ -35,33 +35,27 @@ class _MapPageState extends State<MapPage> with AutomaticKeepAliveClientMixin {
   @override
   void initState() {
     super.initState();
-
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (widget.showDialogOnStart) {
         _showFormDialog();
       }
     });
-
     _initMapAndLocation();
   }
 
-  /// لود اولیه: آخرین نقطه ثبت شده را می‌گیرد و مارکرها را موازی با GPS لود می‌کند
   Future<void> _initMapAndLocation() async {
     final box = await Hive.openBox<ReadingModel>('readings');
 
-    // آخرین نقطه ذخیره شده را برای شروع نقشه انتخاب کن
     if (box.isNotEmpty) {
       final last = box.values.last;
       _mapStartLatLng = LatLng(last.lat, last.lng);
       _currentLatLng = _mapStartLatLng;
     }
 
-    // موازی: مارکرها را لود کن و GPS را بگیر
     _loadPreviousMarkers();
-    _determinePosition(); // بدون await تا نقشه سریع بالا بیاد
+    _determinePosition();
   }
 
-  /// گرفتن موقعیت فعلی با GPS
   Future<void> _determinePosition() async {
     if (_locationLoaded) return;
     _locationLoaded = true;
@@ -95,7 +89,6 @@ class _MapPageState extends State<MapPage> with AutomaticKeepAliveClientMixin {
         _allMarkers.add(_currentMarker!);
       });
 
-      // بعد از گرفتن GPS، دوربین به موقعیت فعلی حرکت کند
       if (mapController != null) {
         mapController?.animateCamera(
           CameraUpdate.newLatLng(_currentLatLng!),
@@ -106,7 +99,6 @@ class _MapPageState extends State<MapPage> with AutomaticKeepAliveClientMixin {
     }
   }
 
-  /// لود مارکرهای ذخیره‌شده
   Future<void> _loadPreviousMarkers() async {
     final box = await Hive.openBox<ReadingModel>('readings');
     for (var reading in box.values) {
@@ -118,6 +110,7 @@ class _MapPageState extends State<MapPage> with AutomaticKeepAliveClientMixin {
           infoWindow: InfoWindow(
             title: reading.subscriptionNumber,
             snippet: reading.description ?? '',
+            onTap: () => _showEditDialog(reading), // ویرایش اطلاعات با کلیک روی infoWindow
           ),
         );
         _allMarkers.add(marker);
@@ -126,7 +119,6 @@ class _MapPageState extends State<MapPage> with AutomaticKeepAliveClientMixin {
     setState(() {});
   }
 
-  /// رفتن به مکان فعلی
   Future<void> _goToCurrentLocation() async {
     Position position = await Geolocator.getCurrentPosition();
     LatLng target = LatLng(position.latitude, position.longitude);
@@ -152,7 +144,6 @@ class _MapPageState extends State<MapPage> with AutomaticKeepAliveClientMixin {
     });
   }
 
-  /// فرم ثبت اطلاعات مشترک
   Future<void> _showFormDialog() async {
     final subscriptionController = TextEditingController();
     final phoneController = TextEditingController();
@@ -220,24 +211,92 @@ class _MapPageState extends State<MapPage> with AutomaticKeepAliveClientMixin {
                 createdAt: DateTime.now(),
               );
               await box.add(newReading);
-
-              final newMarker = Marker(
-                markerId: MarkerId(id),
-                position: LatLng(newReading.lat, newReading.lng),
-                icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
-                infoWindow: InfoWindow(
-                  title: newReading.subscriptionNumber,
-                  snippet: newReading.description ?? '',
-                ),
-              );
-
-              setState(() {
-                _allMarkers.add(newMarker);
-              });
+              _loadPreviousMarkers();
 
               Navigator.pop(context);
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(content: Text('اطلاعات با موفقیت ذخیره شد')),
+              );
+            },
+          )
+        ],
+      ),
+    );
+  }
+
+  /// دیالوگ ویرایش اطلاعات
+  Future<void> _showEditDialog(ReadingModel reading) async {
+    final subscriptionController = TextEditingController(text: reading.subscriptionNumber);
+    final phoneController = TextEditingController(text: reading.phone);
+    final descController = TextEditingController(text: reading.description ?? '');
+    XFile? image;
+
+    await showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('ویرایش اطلاعات مشترک'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: subscriptionController,
+                decoration: const InputDecoration(labelText: 'شماره اشتراک'),
+              ),
+              TextField(
+                controller: phoneController,
+                decoration: const InputDecoration(labelText: 'شماره موبایل'),
+              ),
+              TextField(
+                controller: descController,
+                decoration: const InputDecoration(labelText: 'توضیحات'),
+              ),
+              const SizedBox(height: 10),
+              ElevatedButton.icon(
+                icon: const Icon(Icons.camera_alt),
+                label: const Text('تغییر تصویر'),
+                onPressed: () async {
+                  final picked = await ImagePicker().pickImage(source: ImageSource.camera);
+                  if (picked != null) {
+                    image = picked;
+                  }
+                },
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            child: const Text('لغو'),
+            onPressed: () => Navigator.pop(context),
+          ),
+          ElevatedButton(
+            child: const Text('ذخیره تغییرات'),
+            onPressed: () async {
+              final box = await Hive.openBox<ReadingModel>('readings');
+              final index = box.values.toList().indexWhere((r) => r.id == reading.id);
+              if (index != -1) {
+                String? path = reading.imagePath;
+                if (image != null) {
+                  path = '${(await getApplicationDocumentsDirectory()).path}/${reading.id}.jpg';
+                  await File(image!.path).copy(path);
+                }
+                final updatedReading = ReadingModel(
+                  id: reading.id,
+                  subscriptionNumber: subscriptionController.text,
+                  phone: phoneController.text,
+                  description: descController.text,
+                  lat: reading.lat,
+                  lng: reading.lng,
+                  imagePath: path,
+                  createdAt: reading.createdAt,
+                );
+                await box.putAt(index, updatedReading);
+                _loadPreviousMarkers();
+              }
+              Navigator.pop(context);
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('اطلاعات با موفقیت ویرایش شد')),
               );
             },
           )
