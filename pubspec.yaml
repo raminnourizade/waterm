@@ -34,7 +34,7 @@ dependencies:
   path_provider: ^2.1.2
   path: ^1.9.0
 
-  image_gallery_saver: ^1.7.1
+ # image_gallery_saver: ^1.7.1
 
   # 📤 خروجی گرفتن به CSV
   csv: ^5.0.1
