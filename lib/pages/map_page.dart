@@ -18,7 +18,7 @@ class MapPage extends StatefulWidget {
 }
 
 class _MapPageState extends State<MapPage> with AutomaticKeepAliveClientMixin {
-  LatLng _mapStartLatLng = const LatLng(35.6892, 51.3890); // پیش‌فرض تهران
+  LatLng _mapStartLatLng = const LatLng(35.6892, 51.3890);
   GoogleMapController? mapController;
   LatLng? _currentLatLng;
   double? _altitude;
@@ -40,20 +40,74 @@ class _MapPageState extends State<MapPage> with AutomaticKeepAliveClientMixin {
         _showFormDialog();
       }
     });
-    _initMapAndLocation();
+    _loadMapWithCache();
+  }
+
+  /// لود نقشه با استفاده از کش یک‌ساعته
+  Future<void> _loadMapWithCache() async {
+    final cacheBox = await Hive.openBox('mapCache');
+    final lastCacheTime = cacheBox.get('lastCacheTime');
+    final lastLat = cacheBox.get('lastLat');
+    final lastLng = cacheBox.get('lastLng');
+    final lastMarkers = cacheBox.get('lastMarkers');
+
+    if (lastCacheTime != null &&
+        DateTime.now().difference(lastCacheTime).inMinutes < 60 &&
+        lastLat != null &&
+        lastLng != null) {
+      _mapStartLatLng = LatLng(lastLat, lastLng);
+      if (lastMarkers != null) {
+        for (var m in lastMarkers) {
+          _allMarkers.add(Marker(
+            markerId: MarkerId(m['id']),
+            position: LatLng(m['lat'], m['lng']),
+            icon: BitmapDescriptor.defaultMarkerWithHue(m['color']),
+            infoWindow: InfoWindow(
+              title: m['title'],
+              snippet: m['snippet'],
+            ),
+          ));
+        }
+      }
+      setState(() {});
+      _determinePosition();
+    } else {
+      _initMapAndLocation();
+    }
+  }
+
+  /// ذخیره وضعیت نقشه در کش
+  Future<void> _saveMapCache() async {
+    final cacheBox = await Hive.openBox('mapCache');
+    final markerList = _allMarkers.map((m) {
+      return {
+        'id': m.markerId.value,
+        'lat': m.position.latitude,
+        'lng': m.position.longitude,
+        'color': m.icon == BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueBlue)
+            ? BitmapDescriptor.hueBlue
+            : BitmapDescriptor.hueRed,
+        'title': m.infoWindow.title ?? '',
+        'snippet': m.infoWindow.snippet ?? '',
+      };
+    }).toList();
+
+    await cacheBox.put('lastCacheTime', DateTime.now());
+    await cacheBox.put('lastLat', _mapStartLatLng.latitude);
+    await cacheBox.put('lastLng', _mapStartLatLng.longitude);
+    await cacheBox.put('lastMarkers', markerList);
   }
 
   Future<void> _initMapAndLocation() async {
     final box = await Hive.openBox<ReadingModel>('readings');
-
     if (box.isNotEmpty) {
       final last = box.values.last;
       _mapStartLatLng = LatLng(last.lat, last.lng);
       _currentLatLng = _mapStartLatLng;
     }
-
-    _loadPreviousMarkers();
-    _determinePosition();
+    await _loadPreviousMarkers();
+    await _determinePosition();
+    _saveMapCache();
   }
 
   Future<void> _determinePosition() async {
@@ -94,6 +148,7 @@ class _MapPageState extends State<MapPage> with AutomaticKeepAliveClientMixin {
           CameraUpdate.newLatLng(_currentLatLng!),
         );
       }
+      _saveMapCache();
     } catch (e) {
       debugPrint("Error getting location: $e");
     }
@@ -110,7 +165,7 @@ class _MapPageState extends State<MapPage> with AutomaticKeepAliveClientMixin {
           infoWindow: InfoWindow(
             title: reading.subscriptionNumber,
             snippet: reading.description ?? '',
-            onTap: () => _showEditDialog(reading), // ویرایش اطلاعات با کلیک روی infoWindow
+            onTap: () => _showEditDialog(reading),
           ),
         );
         _allMarkers.add(marker);
@@ -142,8 +197,10 @@ class _MapPageState extends State<MapPage> with AutomaticKeepAliveClientMixin {
       _allMarkers.removeWhere((m) => m.markerId.value == 'current_location');
       _allMarkers.add(_currentMarker!);
     });
+    _saveMapCache();
   }
 
+  /// فرم ثبت اطلاعات
   Future<void> _showFormDialog() async {
     final subscriptionController = TextEditingController();
     final phoneController = TextEditingController();
@@ -211,12 +268,9 @@ class _MapPageState extends State<MapPage> with AutomaticKeepAliveClientMixin {
                 createdAt: DateTime.now(),
               );
               await box.add(newReading);
-              _loadPreviousMarkers();
-
+              await _loadPreviousMarkers();
+              _saveMapCache();
               Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('اطلاعات با موفقیت ذخیره شد')),
-              );
             },
           )
         ],
@@ -224,7 +278,7 @@ class _MapPageState extends State<MapPage> with AutomaticKeepAliveClientMixin {
     );
   }
 
-  /// دیالوگ ویرایش اطلاعات
+  /// فرم ویرایش اطلاعات
   Future<void> _showEditDialog(ReadingModel reading) async {
     final subscriptionController = TextEditingController(text: reading.subscriptionNumber);
     final phoneController = TextEditingController(text: reading.phone);
@@ -292,12 +346,10 @@ class _MapPageState extends State<MapPage> with AutomaticKeepAliveClientMixin {
                   createdAt: reading.createdAt,
                 );
                 await box.putAt(index, updatedReading);
-                _loadPreviousMarkers();
+                await _loadPreviousMarkers();
+                _saveMapCache();
               }
               Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('اطلاعات با موفقیت ویرایش شد')),
-              );
             },
           )
         ],
@@ -341,6 +393,7 @@ class _MapPageState extends State<MapPage> with AutomaticKeepAliveClientMixin {
               _allMarkers.removeWhere((m) => m.markerId.value == 'current_location');
               _allMarkers.add(_currentMarker!);
             });
+            _saveMapCache();
           },
         ),
         floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
@@ -354,6 +407,7 @@ class _MapPageState extends State<MapPage> with AutomaticKeepAliveClientMixin {
                       ? MapType.normal
                       : MapType.satellite;
                 });
+                _saveMapCache();
               },
               backgroundColor: AppColors.primary,
               tooltip: 'تغییر نوع نمایش نقشه',
