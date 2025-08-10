@@ -1,24 +1,38 @@
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 
-Future<void> sendDataToServer({
+Future<void> sendReadingToServer({
   required String userId,
+  required String mainSubscription,
+  String? subSubscription,
+  required String address,
   required double lat,
-  required double lon,
-  required double value,
+  required double lng,
+  double? altitude,
+  double? accuracy,
+  String? imagePath,
+  required DateTime createdAt,
 }) async {
   final url = Uri.parse('http://172.20.10.2:8000/readings/');
 
   try {
+    final payload = {
+      'user_id': userId,
+      'main_subscription': mainSubscription,
+      'sub_subscription': subSubscription ?? '',
+      'address': address,
+      'lat': lat,
+      'lng': lng,
+      'altitude': altitude,
+      'accuracy': accuracy,
+      'image_path': imagePath ?? '',
+      'created_at': createdAt.toIso8601String(),
+    };
+
     final response = await http.post(
       url,
       headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({
-        'user_id': userId,
-        'lat': lat,
-        'lon': lon,
-        'value': value,
-      }),
+      body: jsonEncode(payload),
     );
 
     if (response.statusCode == 200) {

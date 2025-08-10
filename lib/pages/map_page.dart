@@ -43,7 +43,6 @@ class _MapPageState extends State<MapPage> with AutomaticKeepAliveClientMixin {
     _loadMapWithCache();
   }
 
-  /// لود نقشه با استفاده از کش یک‌ساعته
   Future<void> _loadMapWithCache() async {
     final cacheBox = await Hive.openBox('mapCache');
     final lastCacheTime = cacheBox.get('lastCacheTime');
@@ -56,8 +55,16 @@ class _MapPageState extends State<MapPage> with AutomaticKeepAliveClientMixin {
         lastLat != null &&
         lastLng != null) {
       _mapStartLatLng = LatLng(lastLat, lastLng);
+
       if (lastMarkers != null) {
+        final readingsBox = await Hive.openBox<ReadingModel>('readings');
         for (var m in lastMarkers) {
+          ReadingModel? reading;
+          final matches = readingsBox.values.where((r) => r.id == m['id']);
+          if (matches.isNotEmpty) {
+            reading = matches.first;
+          }
+
           _allMarkers.add(Marker(
             markerId: MarkerId(m['id']),
             position: LatLng(m['lat'], m['lng']),
@@ -65,10 +72,12 @@ class _MapPageState extends State<MapPage> with AutomaticKeepAliveClientMixin {
             infoWindow: InfoWindow(
               title: m['title'],
               snippet: m['snippet'],
+              onTap: reading != null ? () => _showEditDialog(reading!) : null,
             ),
           ));
         }
       }
+
       setState(() {});
       _determinePosition();
     } else {
@@ -76,7 +85,6 @@ class _MapPageState extends State<MapPage> with AutomaticKeepAliveClientMixin {
     }
   }
 
-  /// ذخیره وضعیت نقشه در کش
   Future<void> _saveMapCache() async {
     final cacheBox = await Hive.openBox('mapCache');
     final markerList = _allMarkers.map((m) {
@@ -143,11 +151,9 @@ class _MapPageState extends State<MapPage> with AutomaticKeepAliveClientMixin {
         _allMarkers.add(_currentMarker!);
       });
 
-      if (mapController != null) {
-        mapController?.animateCamera(
-          CameraUpdate.newLatLng(_currentLatLng!),
-        );
-      }
+      mapController?.animateCamera(
+        CameraUpdate.newLatLng(_currentLatLng!),
+      );
       _saveMapCache();
     } catch (e) {
       debugPrint("Error getting location: $e");
@@ -163,8 +169,8 @@ class _MapPageState extends State<MapPage> with AutomaticKeepAliveClientMixin {
           position: LatLng(reading.lat, reading.lng),
           icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
           infoWindow: InfoWindow(
-            title: reading.subscriptionNumber,
-            snippet: reading.description ?? '',
+            title: '${reading.mainSubscription}${reading.subSubscription != null ? " - ${reading.subSubscription}" : ""}',
+            snippet: reading.address,
             onTap: () => _showEditDialog(reading),
           ),
         );
@@ -200,11 +206,10 @@ class _MapPageState extends State<MapPage> with AutomaticKeepAliveClientMixin {
     _saveMapCache();
   }
 
-  /// فرم ثبت اطلاعات
   Future<void> _showFormDialog() async {
-    final subscriptionController = TextEditingController();
-    final phoneController = TextEditingController();
-    final descController = TextEditingController();
+    final mainSubCtrl = TextEditingController();
+    final subSubCtrl = TextEditingController();
+    final addressCtrl = TextEditingController();
     XFile? image;
 
     await showDialog(
@@ -215,55 +220,43 @@ class _MapPageState extends State<MapPage> with AutomaticKeepAliveClientMixin {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              TextField(
-                controller: subscriptionController,
-                decoration: const InputDecoration(labelText: 'شماره اشتراک'),
-              ),
-              TextField(
-                controller: phoneController,
-                decoration: const InputDecoration(labelText: 'شماره موبایل'),
-              ),
-              TextField(
-                controller: descController,
-                decoration: const InputDecoration(labelText: 'توضیحات'),
-              ),
+              TextField(controller: mainSubCtrl, decoration: const InputDecoration(labelText: 'اشتراک اصلی')),
+              TextField(controller: subSubCtrl, decoration: const InputDecoration(labelText: 'اشتراک فرعی')),
+              TextField(controller: addressCtrl, decoration: const InputDecoration(labelText: 'آدرس')),
               const SizedBox(height: 10),
               ElevatedButton.icon(
                 icon: const Icon(Icons.camera_alt),
                 label: const Text('افزودن تصویر (اختیاری)'),
                 onPressed: () async {
                   final picked = await ImagePicker().pickImage(source: ImageSource.camera);
-                  if (picked != null) {
-                    image = picked;
-                  }
+                  if (picked != null) image = picked;
                 },
               ),
             ],
           ),
         ),
         actions: [
-          TextButton(
-            child: const Text('لغو'),
-            onPressed: () => Navigator.pop(context),
-          ),
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('لغو')),
           ElevatedButton(
             child: const Text('ذخیره'),
             onPressed: () async {
               final id = const Uuid().v4();
-              final path = image != null
-                  ? '${(await getApplicationDocumentsDirectory()).path}/$id.jpg'
-                  : null;
-              if (image != null && path != null) {
+              String? path;
+              if (image != null) {
+                path = '${(await getApplicationDocumentsDirectory()).path}/$id.jpg';
                 await File(image!.path).copy(path);
               }
+              final pos = _currentLatLng;
               final box = await Hive.openBox<ReadingModel>('readings');
               final newReading = ReadingModel(
                 id: id,
-                subscriptionNumber: subscriptionController.text,
-                phone: phoneController.text,
-                description: descController.text,
-                lat: _currentLatLng?.latitude ?? 0,
-                lng: _currentLatLng?.longitude ?? 0,
+                mainSubscription: mainSubCtrl.text.trim(),
+                subSubscription: subSubCtrl.text.trim().isEmpty ? null : subSubCtrl.text.trim(),
+                address: addressCtrl.text.trim(),
+                lat: pos?.latitude ?? 0,
+                lng: pos?.longitude ?? 0,
+                altitude: _altitude,
+                accuracy: _accuracy,
                 imagePath: path,
                 createdAt: DateTime.now(),
               );
@@ -272,17 +265,16 @@ class _MapPageState extends State<MapPage> with AutomaticKeepAliveClientMixin {
               _saveMapCache();
               Navigator.pop(context);
             },
-          )
+          ),
         ],
       ),
     );
   }
 
-  /// فرم ویرایش اطلاعات
   Future<void> _showEditDialog(ReadingModel reading) async {
-    final subscriptionController = TextEditingController(text: reading.subscriptionNumber);
-    final phoneController = TextEditingController(text: reading.phone);
-    final descController = TextEditingController(text: reading.description ?? '');
+    final mainSubCtrl = TextEditingController(text: reading.mainSubscription);
+    final subSubCtrl = TextEditingController(text: reading.subSubscription ?? '');
+    final addressCtrl = TextEditingController(text: reading.address);
     XFile? image;
 
     await showDialog(
@@ -293,37 +285,62 @@ class _MapPageState extends State<MapPage> with AutomaticKeepAliveClientMixin {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              TextField(
-                controller: subscriptionController,
-                decoration: const InputDecoration(labelText: 'شماره اشتراک'),
-              ),
-              TextField(
-                controller: phoneController,
-                decoration: const InputDecoration(labelText: 'شماره موبایل'),
-              ),
-              TextField(
-                controller: descController,
-                decoration: const InputDecoration(labelText: 'توضیحات'),
-              ),
+              TextField(controller: mainSubCtrl, decoration: const InputDecoration(labelText: 'اشتراک اصلی')),
+              TextField(controller: subSubCtrl, decoration: const InputDecoration(labelText: 'اشتراک فرعی (اختیاری)')),
+              TextField(controller: addressCtrl, decoration: const InputDecoration(labelText: 'آدرس')),
               const SizedBox(height: 10),
               ElevatedButton.icon(
                 icon: const Icon(Icons.camera_alt),
                 label: const Text('تغییر تصویر'),
                 onPressed: () async {
                   final picked = await ImagePicker().pickImage(source: ImageSource.camera);
-                  if (picked != null) {
-                    image = picked;
-                  }
+                  if (picked != null) image = picked;
                 },
               ),
             ],
           ),
         ),
         actions: [
+          // دکمه حذف
           TextButton(
-            child: const Text('لغو'),
-            onPressed: () => Navigator.pop(context),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('حذف'),
+            onPressed: () async {
+              final confirm = await showDialog<bool>(
+                context: context,
+                builder: (context) => AlertDialog(
+                  title: const Text('تایید حذف'),
+                  content: const Text('آیا مطمئن هستید که می‌خواهید این نقطه را حذف کنید؟'),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context, false),
+                      child: const Text('لغو'),
+                    ),
+                    ElevatedButton(
+                      style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                      onPressed: () => Navigator.pop(context, true),
+                      child: const Text('حذف'),
+                    ),
+                  ],
+                ),
+              );
+
+              if (confirm == true) {
+                final box = await Hive.openBox<ReadingModel>('readings');
+                final index = box.values.toList().indexWhere((r) => r.id == reading.id);
+                if (index != -1) {
+                  await box.deleteAt(index);
+                  setState(() {
+                    _allMarkers.removeWhere((m) => m.markerId.value == reading.id);
+                  });
+                  _saveMapCache();
+                }
+                Navigator.pop(context); // بستن دیالوگ ویرایش
+              }
+            },
           ),
+
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('لغو')),
           ElevatedButton(
             child: const Text('ذخیره تغییرات'),
             onPressed: () async {
@@ -337,11 +354,13 @@ class _MapPageState extends State<MapPage> with AutomaticKeepAliveClientMixin {
                 }
                 final updatedReading = ReadingModel(
                   id: reading.id,
-                  subscriptionNumber: subscriptionController.text,
-                  phone: phoneController.text,
-                  description: descController.text,
+                  mainSubscription: mainSubCtrl.text.trim(),
+                  subSubscription: subSubCtrl.text.trim().isEmpty ? null : subSubCtrl.text.trim(),
+                  address: addressCtrl.text.trim(),
                   lat: reading.lat,
                   lng: reading.lng,
+                  altitude: reading.altitude,
+                  accuracy: reading.accuracy,
                   imagePath: path,
                   createdAt: reading.createdAt,
                 );
@@ -351,7 +370,7 @@ class _MapPageState extends State<MapPage> with AutomaticKeepAliveClientMixin {
               }
               Navigator.pop(context);
             },
-          )
+          ),
         ],
       ),
     );
@@ -373,9 +392,7 @@ class _MapPageState extends State<MapPage> with AutomaticKeepAliveClientMixin {
             target: _mapStartLatLng,
             zoom: 16,
           ),
-          onMapCreated: (controller) {
-            mapController = controller;
-          },
+          onMapCreated: (controller) => mapController = controller,
           markers: _allMarkers,
           mapType: _currentMapType,
           onTap: (LatLng newLatLng) {

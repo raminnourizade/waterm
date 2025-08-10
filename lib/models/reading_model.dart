@@ -7,42 +7,44 @@ class ReadingModel extends HiveObject {
   String id;
 
   @HiveField(1)
-  String subscriptionNumber;
+  String mainSubscription; // اشتراک اصلی
 
   @HiveField(2)
-  String phone;
+  String? subSubscription; // اشتراک فرعی (اختیاری)
 
   @HiveField(3)
-  String description;
+  String address; // آدرس
 
   @HiveField(4)
-  double lat;
+  double lat; // عرض جغرافیایی
 
   @HiveField(5)
-  double lng;
+  double lng; // طول جغرافیایی
 
   @HiveField(6)
-  String? imagePath; // مسیر عکس (قدیمی بوده و لازمه برگرده)
-
-  @HiveField(7)
-  DateTime createdAt;
-
-  @HiveField(8)
   double? altitude; // ارتفاع
 
-  @HiveField(9)
+  @HiveField(7)
   double? accuracy; // دقت GPS
+
+  @HiveField(8)
+  String? imagePath; // مسیر عکس
+
+  @HiveField(9)
+  DateTime createdAt; // زمان ثبت
+
 
   ReadingModel({
     required this.id,
-    required this.subscriptionNumber,
-    required this.phone,
-    required this.description,
+    required this.mainSubscription,
+    this.subSubscription,
+    required this.address,
     required this.lat,
     required this.lng,
-    this.imagePath,
-    required this.createdAt,
     this.altitude,
     this.accuracy,
+    this.imagePath,
+    required this.createdAt,
+
   });
 }

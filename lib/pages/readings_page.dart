@@ -43,7 +43,6 @@ class _ReadingsPageState extends State<ReadingsPage> {
       filteredReadings = readings.where((r) {
         bool match = true;
 
-        // فیلتر تاریخ
         if (startDate != null) {
           match &= r.createdAt.isAfter(startDate!) || r.createdAt.isAtSameMomentAs(startDate!);
         }
@@ -51,12 +50,11 @@ class _ReadingsPageState extends State<ReadingsPage> {
           match &= r.createdAt.isBefore(endDate!) || r.createdAt.isAtSameMomentAs(endDate!);
         }
 
-        // فیلتر شماره اشتراک
         if (subscriptionFilter.isNotEmpty) {
-          match &= r.subscriptionNumber.contains(subscriptionFilter);
+          match &= r.mainSubscription.contains(subscriptionFilter) ||
+              (r.subSubscription?.contains(subscriptionFilter) ?? false);
         }
 
-        // فیلتر محدوده نقشه
         if (mapBoundsFilter != null) {
           match &= mapBoundsFilter!.contains(LatLng(r.lat, r.lng));
         }
@@ -88,24 +86,47 @@ class _ReadingsPageState extends State<ReadingsPage> {
 
   String _generateCsv() {
     final csvBuffer = StringBuffer();
-    csvBuffer.writeln('id,subscriptionNumber,phone,description,lat,lng,altitude,accuracy,createdAt');
+    csvBuffer.writeln('id,mainSubscription,subSubscription,address,lat,lng,altitude,accuracy,createdAt');
 
     for (var r in filteredReadings) {
-      final row = [
+      csvBuffer.writeln([
         r.id,
-        r.subscriptionNumber.replaceAll(',', ' '),
-        r.phone.replaceAll(',', ' '),
-        r.description.replaceAll(',', ' '),
-        r.lat.toString(),
-        r.lng.toString(),
-        r.altitude?.toStringAsFixed(2) ?? '',
-        r.accuracy?.toStringAsFixed(2) ?? '',
+        r.mainSubscription.replaceAll(',', ' '),
+        r.subSubscription?.replaceAll(',', ' ') ?? '',
+        r.address.replaceAll(',', ' '),
+        r.lat,
+        r.lng,
+        r.altitude ?? '',
+        r.accuracy ?? '',
         r.createdAt.toIso8601String(),
-      ].join(',');
-      csvBuffer.writeln(row);
+      ].join(','));
     }
 
     return csvBuffer.toString();
+  }
+
+  String _generateKml() {
+    final kmlBuffer = StringBuffer();
+    kmlBuffer.writeln('<?xml version="1.0" encoding="UTF-8"?>');
+    kmlBuffer.writeln('<kml xmlns="http://www.opengis.net/kml/2.2">');
+    kmlBuffer.writeln('<Document>');
+    kmlBuffer.writeln('<name>Readings Export</name>');
+
+    for (var r in filteredReadings) {
+      kmlBuffer.writeln('<Placemark>');
+      kmlBuffer.writeln('<name>${r.mainSubscription}${r.subSubscription != null ? " - ${r.subSubscription}" : ""}</name>');
+      kmlBuffer.writeln('<description><![CDATA['
+          '${r.address}<br>'
+          'ارتفاع: ${r.altitude ?? "-"} متر<br>'
+          'دقت: ${r.accuracy ?? "-"} متر'
+          ']]></description>');
+      kmlBuffer.writeln('<Point><coordinates>${r.lng},${r.lat},${r.altitude ?? 0}</coordinates></Point>');
+      kmlBuffer.writeln('</Placemark>');
+    }
+
+    kmlBuffer.writeln('</Document>');
+    kmlBuffer.writeln('</kml>');
+    return kmlBuffer.toString();
   }
 
   Future<bool> _checkPermission() async {
@@ -120,10 +141,10 @@ class _ReadingsPageState extends State<ReadingsPage> {
     return true;
   }
 
-  Future<void> _saveCsvFile() async {
+  Future<void> _saveFile({required String format}) async {
     if (filteredReadings.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('هیچ داده‌ای برای خروجی CSV وجود ندارد')));
+          const SnackBar(content: Text('هیچ داده‌ای برای خروجی وجود ندارد')));
       return;
     }
 
@@ -135,7 +156,7 @@ class _ReadingsPageState extends State<ReadingsPage> {
     }
 
     try {
-      final csvString = _generateCsv();
+      final content = format == 'csv' ? _generateCsv() : _generateKml();
 
       Directory? directory;
       if (Platform.isAndroid) {
@@ -159,18 +180,48 @@ class _ReadingsPageState extends State<ReadingsPage> {
         await directory.create(recursive: true);
       }
 
-      final filePath = '${directory.path}/readings_${DateTime.now().millisecondsSinceEpoch}.csv';
+      final filePath = '${directory.path}/readings_${DateTime.now().millisecondsSinceEpoch}.$format';
       final file = File(filePath);
-      await file.writeAsString(csvString);
+      await file.writeAsString(content);
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('فایل CSV در مسیر زیر ذخیره شد:\n$filePath')),
+        SnackBar(content: Text('فایل $format در مسیر زیر ذخیره شد:\n$filePath')),
       );
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('خطا در ذخیره فایل: $e')),
       );
     }
+  }
+
+  Future<void> _showDownloadOptions() async {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('انتخاب فرمت خروجی'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.table_chart),
+              title: const Text('CSV'),
+              onTap: () {
+                Navigator.pop(context);
+                _saveFile(format: 'csv');
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.public),
+              title: const Text('KML (Google Earth)'),
+              onTap: () {
+                Navigator.pop(context);
+                _saveFile(format: 'kml');
+              },
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   void _goToMapPage() {
@@ -207,8 +258,8 @@ class _ReadingsPageState extends State<ReadingsPage> {
           actions: [
             IconButton(
               icon: const Icon(Icons.download),
-              tooltip: 'دانلود فایل CSV',
-              onPressed: _saveCsvFile,
+              tooltip: 'دانلود فایل',
+              onPressed: _showDownloadOptions,
             ),
             IconButton(
               icon: const Icon(Icons.map),
@@ -219,14 +270,13 @@ class _ReadingsPageState extends State<ReadingsPage> {
         ),
         body: Column(
           children: [
-            // بخش فیلترها
             Padding(
               padding: const EdgeInsets.all(8),
               child: Row(
                 children: [
                   Expanded(
                     child: TextField(
-                      decoration: const InputDecoration(labelText: 'شماره اشتراک'),
+                      decoration: const InputDecoration(labelText: 'اشتراک (اصلی یا فرعی)'),
                       onChanged: (val) {
                         subscriptionFilter = val;
                         _applyFilters();
@@ -254,12 +304,11 @@ class _ReadingsPageState extends State<ReadingsPage> {
                   return Card(
                     margin: const EdgeInsets.all(8),
                     child: ListTile(
-                      title: Text('اشتراک: ${r.subscriptionNumber}'),
+                      title: Text('اشتراک: ${r.mainSubscription}${r.subSubscription != null ? " - ${r.subSubscription}" : ""}'),
                       subtitle: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('موبایل: ${r.phone}'),
-                          Text('توضیح: ${r.description}'),
+                          Text('آدرس: ${r.address}'),
                           Text('(${r.lat.toStringAsFixed(4)}, ${r.lng.toStringAsFixed(4)})'),
                           Text('ارتفاع: ${r.altitude?.toStringAsFixed(2) ?? "-"} متر'),
                           Text('دقت: ${r.accuracy?.toStringAsFixed(2) ?? "-"} متر'),
@@ -307,8 +356,8 @@ class _ReadingsMapPageState extends State<ReadingsMapPage> {
           markerId: MarkerId(r.id.toString()),
           position: position,
           infoWindow: InfoWindow(
-            title: 'اشتراک: ${r.subscriptionNumber}',
-            snippet: 'تاریخ: ${r.createdAt.toString().substring(0, 19)}',
+            title: '${r.mainSubscription}${r.subSubscription != null ? " - ${r.subSubscription}" : ""}',
+            snippet: r.address,
           ),
           icon: BitmapDescriptor.defaultMarkerWithHue(
             i == 0 ? BitmapDescriptor.hueGreen : BitmapDescriptor.hueAzure,
