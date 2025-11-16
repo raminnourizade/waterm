@@ -11,7 +11,7 @@ void main() async {
 
   await Hive.initFlutter();
 
-  // ثبت Adapter برای مدل ReadingModel
+  //  ثبت Adapter برای مدل ReadingModel
   Hive.registerAdapter(ReadingModelAdapter());
 
   runApp(const MyApp());
